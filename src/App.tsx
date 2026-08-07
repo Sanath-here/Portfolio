@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { Analytics } from '@vercel/analytics/react';
 import Navbar from './components/Navbar';
 import HeroSection from './components/HeroSection';
 import AboutMeSection from './components/AboutMeSection';
@@ -140,6 +141,7 @@ export default function App() {
           <span>© 2026. CURRENT_SECTOR_ONLINE</span>
         </div>
       </footer>
+      <Analytics />
     </div>
   );
 }
