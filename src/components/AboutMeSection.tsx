@@ -48,7 +48,7 @@ export default function AboutMeSection() {
             </span>
             <h2 className="font-display font-black text-4xl text-white tracking-wider flex items-center space-x-3">
               <Shield className="w-8 h-8 text-brand animate-pulse" />
-              <DecryptText text="ABOUT ME & EXPERIENCE" />
+              <DecryptText text="ABOUT ME" />
             </h2>
           </div>
         </ScrollReveal>
@@ -112,6 +112,10 @@ export default function AboutMeSection() {
                   <li className="flex items-center group-hover:text-white transition-colors duration-200">
                     <span className="font-mono text-[11px] text-brand mr-3 select-none">[+]</span>
                     Blender, Substance 3D Painter, After Effects, Photoshop
+                  </li>
+                  <li className="flex items-center group-hover:text-white transition-colors duration-200">
+                    <span className="font-mono text-[11px] text-brand mr-3 select-none">[+]</span>
+                    AI Tools:  Claude, ChatGPT, Antigravity, Cursor, ElevenLabs
                   </li>
                 </ul>
               </div>

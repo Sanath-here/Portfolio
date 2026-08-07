@@ -123,14 +123,14 @@ export const ACHIEVEMENTS_DATA: Achievement[] = [
 
 export const CERTIFICATIONS_DATA: Certification[] = [
   {
-    id: 'ue5-dev',
-    title: 'Unreal Engine 5 Graphics & Gameplay Architecture',
-    issuer: 'Epic Games Learning / GameDev Institute',
-    date: '2025',
-    credentialId: 'UE5-CERT-884920',
-    verifyUrl: 'https://www.unrealengine.com',
-    skills: ['Blueprints & C++', 'Lumen & Nanite', 'VR/AR Physics', 'Level Design'],
-    status: 'VERIFIED'
+    id: 'malay-bootcamp',
+    title: '11 day international bootcamp at Universiti Sainz Islam Malaysia (USIM), Malaysia',
+    issuer: 'Universiti Sainz Islam Malaysia(USIM)',
+    date: 'July, 2025',
+    credentialId: 'UNI-MALAY-77542',
+    verifyUrl: 'https://www.linkedin.com/in/sanath-lal-shibu-lekha-b1a543371?utm_source=share_via&utm_content=profile&utm_medium=member_android',
+    skills: ['Robotics', 'Gen AI', 'Power BI', 'Design Thinking'],
+    status: 'AUTHENTICATED'
   },
   {
     id: 'ai-ml-python',
