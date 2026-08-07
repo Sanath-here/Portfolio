@@ -1,0 +1,70 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", sans-serif;
+  --font-mono: "Share Tech Mono", monospace;
+
+  --color-brand: #c4fd02; /* Sharp yellow-lime/chartreuse from Lando's page */
+  --color-brand-dim: #99c202;
+  --color-dark-bg: #0d0e12; /* Sleek matte military slate dark */
+  --color-dark-card: #14161d;
+  --color-hud-gray: #1f222b;
+  --color-hud-border: #2a2f3d;
+}
+
+/* Custom styles for glowing tactical HUD and overlays */
+@layer utilities {
+  .glow-brand {
+    text-shadow: 0 0 10px rgba(196, 253, 2, 0.4), 0 0 20px rgba(196, 253, 2, 0.2);
+  }
+  .box-glow-brand {
+    box-shadow: 0 0 15px rgba(196, 253, 2, 0.25), inset 0 0 15px rgba(196, 253, 2, 0.05);
+  }
+}
+
+body {
+  background-color: #0d0e12;
+  color: #f3f4f6;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* Hide native cursor on desktop to prioritize custom tactical reticle */
+@media (min-width: 768px) {
+  html, body, a, button, input, textarea, select, [role="button"], .cursor-pointer {
+    cursor: none !important;
+  }
+}
+
+/* Smooth background scanning grid line animation */
+@keyframes grid-pulse {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.3; }
+}
+
+.hud-grid-bg {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  animation: grid-pulse 8s ease-in-out infinite;
+}
+
+/* Scrollbar styles matching the tactical theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #0d0e12;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2f3d;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #c4fd02;
+}
+
