@@ -3,7 +3,7 @@ import { motion } from 'motion/react';
 
 // Dynamic import or local path of the generated image
 // @ts-ignore
-import ghostImg from '../assets/images/simon_riley_ghost_1780997541733.png';
+import ghostImg from '../assets/images/ghost_cod_hero_1780995241968.png';
 
 export default function HeroSection() {
   const [mouseParallax, setMouseParallax] = useState({ x: 0, y: 0 }); // subtle coordinates translation
