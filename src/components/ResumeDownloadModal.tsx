@@ -54,24 +54,12 @@ export default function ResumeDownloadModal({ isOpen, onClose }: ResumeDownloadM
         body: JSON.stringify(formData),
       });
 
-      const responseText = await response.text();
+      const data = await response.json();
 
-console.log("API status:", response.status);
-console.log("API response:", responseText);
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Failed to submit request.');
+      }
 
-let data;
-
-try {
-  data = JSON.parse(responseText);
-} catch {
-  throw new Error(
-    `API did not return JSON. Status: ${response.status}. Response: ${responseText || 'Empty response'}`
-  );
-}
-
-if (!response.ok || !data.success) {
-  throw new Error(data.error || 'Failed to submit request.');
-}
       setSuccessResult({
         recordId: data.recordId || 'REQ-VERIFIED',
         emailSent: data.emailSent,
