@@ -101,7 +101,7 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
 
                 {/* Tactical Title Inside Circle */}
                 <span className="text-[10px] sm:text-[11px] font-bold text-brand tracking-[0.25em] uppercase">
-                  SANATH LAL
+                  SANATH's
                 </span>
                 
                 <span className="font-display font-black text-xl sm:text-2xl text-white tracking-wider my-1 uppercase">
