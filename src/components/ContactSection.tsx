@@ -1,4 +1,4 @@
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Send, 
@@ -15,7 +15,8 @@ import {
   ShieldCheck,
   Zap,
   Tag,
-  Trash2
+  Trash2,
+  Database
 } from 'lucide-react';
 import { Feedback } from '../types';
 import { PRESEEDED_FEEDBACK } from '../data';
@@ -47,9 +48,33 @@ export default function ContactSection() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [dbStatusText, setDbStatusText] = useState<string | null>(null);
 
-  // Local Feedback Stream (Starts with preseeded + user submitted)
+  // Local Feedback Stream (Starts with preseeded + loaded from MongoDB)
   const [feedbackList, setFeedbackList] = useState<Feedback[]>(PRESEEDED_FEEDBACK);
+
+  // Fetch persisted feedback entries from MongoDB on mount
+  useEffect(() => {
+    async function loadFeedbackFromDB() {
+      try {
+        const res = await fetch('/api/feedback');
+        if (!res.ok) return;
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          // Merge db feedback with preseeded, avoiding duplicates
+          setFeedbackList(prev => {
+            const existingIds = new Set(prev.map(item => item.id));
+            const newDbItems = json.data.filter((item: Feedback) => !existingIds.has(item.id));
+            return [...newDbItems, ...prev];
+          });
+        }
+      } catch (err) {
+        console.error('Could not fetch stored feedback from database:', err);
+      }
+    }
+
+    loadFeedbackFromDB();
+  }, []);
 
   const ratingLabels: Record<number, string> = {
     1: '1 ★ — Needs Improvement',
@@ -79,12 +104,18 @@ export default function ContactSection() {
     setTimeout(() => setCopiedEmail(false), 2500);
   };
 
-  const removeFeedback = (id: string) => {
+  const removeFeedback = async (id: string) => {
     playSound('chirp');
     setFeedbackList(prev => prev.filter(item => item.id !== id));
+
+    try {
+      await fetch(`/api/feedback/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Error deleting feedback:', err);
+    }
   };
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
 
@@ -104,32 +135,58 @@ export default function ContactSection() {
     playSound('success');
     setIsSubmitting(true);
 
-    // Construct Mailto Link
-    const mailSubject = encodeURIComponent(`[Portfolio Commlink] ${subject} - from ${name}`);
-    const mailBody = encodeURIComponent(
-      `Name: ${name}\nEmail: ${email}\nRole/Company: ${role}\nRating: ${rating}/5 stars (${ratingLabels[rating]})\nSubject: ${subject}\n\nMessage:\n${message}\n\n---\nTransmitted via Sanath Lal Portfolio Commlink`
-    );
-    const mailtoUrl = `mailto:${DESTINATION_EMAIL}?subject=${mailSubject}&body=${mailBody}`;
+    try {
+      // POST to MongoDB Backend API
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim(),
+          role: role.trim() || 'Portfolio Operative',
+          subject: subject.trim(),
+          rating,
+          message: message.trim(),
+        }),
+      });
 
-    setTimeout(() => {
-      // 1. Add feedback to live list if rating/message is provided
-      const newFb: Feedback = {
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to record feedback.');
+      }
+
+      const newEntry: Feedback = data.data || {
         id: `fb-user-${Date.now()}`,
         author: name,
         role: role.trim() || 'Portfolio Operative',
         message: message,
         rating: rating,
-        date: new Date().toISOString().split('T')[0]
+        date: new Date().toISOString().split('T')[0],
       };
 
-      setFeedbackList(prev => [newFb, ...prev]);
-
-      setIsSubmitting(false);
+      setFeedbackList(prev => [newEntry, ...prev]);
+      setDbStatusText(data.dbSaved ? 'Logged & Persisted to MongoDB' : 'Logged into memory stream');
       setIsSuccess(true);
+      playSound('unlock');
 
-      // Attempt to launch visitor's email client
+      // Construct Mailto Link for optional email opening
+      const mailSubject = encodeURIComponent(`[Portfolio Commlink] ${subject} - from ${name}`);
+      const mailBody = encodeURIComponent(
+        `Name: ${name}\nEmail: ${email}\nRole/Company: ${role}\nRating: ${rating}/5 stars (${ratingLabels[rating]})\nSubject: ${subject}\n\nMessage:\n${message}\n\n---\nTransmitted via Sanath Lal Portfolio Commlink`
+      );
+      const mailtoUrl = `mailto:${DESTINATION_EMAIL}?subject=${mailSubject}&body=${mailBody}`;
+
+      // Optionally attempt to open visitor mail client
       window.open(mailtoUrl, '_blank');
-    }, 800);
+
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error submitting feedback.';
+      setErrorMsg(msg);
+      playSound('beep');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -213,8 +270,14 @@ export default function ContactSection() {
                     </div>
 
                     <div className="p-4 bg-[#141824] border border-[#272d40] rounded-xl max-w-md mx-auto text-left font-mono text-xs space-y-1.5 text-gray-300">
-                      <div className="text-brand font-bold uppercase border-b border-[#272d40] pb-1 mb-2">
-                        // DISPATCH SUMMARY LOG
+                      <div className="text-brand font-bold uppercase border-b border-[#272d40] pb-1 mb-2 flex items-center justify-between">
+                        <span>// DISPATCH SUMMARY LOG</span>
+                        {dbStatusText && (
+                          <span className="text-[10px] text-brand/90 bg-brand/10 px-2 py-0.5 rounded border border-brand/30 flex items-center space-x-1">
+                            <Database className="w-3 h-3 text-brand" />
+                            <span>{dbStatusText}</span>
+                          </span>
+                        )}
                       </div>
                       <div><span className="text-gray-500">SENDER:</span> {name} ({email})</div>
                       <div><span className="text-gray-500">SUBJECT:</span> {subject}</div>
