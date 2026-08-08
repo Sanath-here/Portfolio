@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Volume2, VolumeX, Menu, X, ShieldAlert, Cpu, Terminal, Radio } from 'lucide-react';
 import { playSound } from '../utils/audio';
 
-const DEFAULT_AVATAR = "/src/assets/images/tactical_profile_avatar_1786212879890.jpg";
+const DEFAULT_AVATAR = "/src/assets/images/1772978873472.jpg";
 
 interface NavbarProps {
   isMuted: boolean;
