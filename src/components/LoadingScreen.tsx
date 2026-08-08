@@ -101,7 +101,7 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
 
                 {/* Tactical Title Inside Circle */}
                 <span className="text-[10px] sm:text-[11px] font-bold text-brand tracking-[0.25em] uppercase">
-                  SANATH's
+                  SANATH'S
                 </span>
                 
                 <span className="font-display font-black text-xl sm:text-2xl text-white tracking-wider my-1 uppercase">
@@ -139,11 +139,6 @@ export default function LoadingScreen({ onComplete }: LoadingScreenProps) {
             <div className="w-8 h-8 rounded-full border border-brand/30 flex items-center justify-center">
               <span className="w-2 h-2 rounded-full bg-brand animate-ping" />
             </div>
-          </div>
-
-          {/* Bottom Minimal Prompt */}
-          <div className="absolute bottom-6 text-[10px] tracking-[0.25em] text-gray-600 uppercase font-mono">
-            CLICK ANYWHERE OR PRESS SPACE TO SKIP
           </div>
 
         </motion.div>

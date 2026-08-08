@@ -1,14 +1,17 @@
 import { useState, MouseEvent, useRef } from 'react';
 import { motion } from 'motion/react';
+import { Download, FileText, ShieldCheck, CheckCircle2, FileCheck } from 'lucide-react';
+import { playSound } from '../utils/audio';
 
 // Dynamic import or local path of the generated image
 // @ts-ignore
-import ghostImg from '../assets/images/ghost_cod_hero_1780995241968.png';
+import ghostImg from '../assets/images/simon_riley_ghost_1780997541733.png';
 
 export default function HeroSection() {
   const [mouseParallax, setMouseParallax] = useState({ x: 0, y: 0 }); // subtle coordinates translation
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0, isHovered: false });
+  const [downloaded, setDownloaded] = useState(false);
 
   const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
     // Calculate interactive parallax offset
@@ -27,6 +30,23 @@ export default function HeroSection() {
   const handleMouseLeave = () => {
     setMouseParallax({ x: 0, y: 0 });
     setMousePos(prev => ({ ...prev, isHovered: false }));
+  };
+
+  const handleDownloadResume = () => {
+    playSound('unlock');
+    setDownloaded(true);
+
+    const link = document.createElement('a');
+    link.href = '/Sanath Lal Shibu Lekha Resume.pdf';
+    link.download = 'Sanath_Lal.pdf';
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setTimeout(() => {
+      setDownloaded(false);
+    }, 4000);
   };
 
   return (
@@ -79,83 +99,10 @@ export default function HeroSection() {
           transition={{ type: "spring", stiffness: 90, damping: 24 }}
           className="w-full h-full object-cover object-top opacity-85 transition-all duration-700"
         />
-
-        {/* Negative Image Reveal Spotlight Overlay (Perfect Alignment Blob) */}
-        <motion.div
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            width: '120px', // 60px radius => 120px diameter
-            height: '120px',
-            borderRadius: '42% 58% 70% 30% / 45% 45% 55% 55%',
-            animation: 'morphBlob 8s ease-in-out infinite',
-            pointerEvents: 'none',
-            overflow: 'hidden',
-            zIndex: 2,
-          }}
-          animate={{ 
-            x: mousePos.x - 60,
-            y: mousePos.y - 60,
-            scale: mousePos.isHovered ? 1 : 0,
-            opacity: mousePos.isHovered ? 1 : 0,
-          }}
-          transition={{ 
-            x: { type: "spring", stiffness: 140, damping: 26, mass: 0.6 },
-            y: { type: "spring", stiffness: 140, damping: 26, mass: 0.6 },
-            scale: { duration: 0.4, ease: "easeOut" },
-            opacity: { duration: 0.25, ease: "linear" }
-          }}
-          className="border-2 border-brand/80 shadow-[0_0_25px_rgba(196,253,2,0.45)]"
-        >
-          <motion.div 
-            style={{
-              position: 'absolute',
-              width: imageContainerRef.current ? imageContainerRef.current.offsetWidth : '100vw',
-              height: imageContainerRef.current ? imageContainerRef.current.offsetHeight : '100vh',
-            }}
-            animate={{
-              x: -(mousePos.x - 60),
-              y: -(mousePos.y - 60),
-            }}
-            transition={{ 
-              x: { type: "spring", stiffness: 140, damping: 26, mass: 0.6 },
-              y: { type: "spring", stiffness: 140, damping: 26, mass: 0.6 }
-            }}
-          >
-            <motion.img 
-              src={ghostImg} 
-              alt="Simon Riley Ghost Full Screen Tactical Image Negative" 
-              referrerPolicy="no-referrer"
-              animate={{ 
-                x: mouseParallax.x * -1.8, 
-                y: mouseParallax.y * -1.8,
-                scale: 1.05
-              }}
-              transition={{ type: "spring", stiffness: 90, damping: 24 }}
-              className="w-full h-full object-cover object-top opacity-100 invert saturate-[2.2] contrast-135"
-            />
-          </motion.div>
         </motion.div>
 
         <style>{`
-          @keyframes morphBlob {
-            0% {
-              border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
-            }
-            25% {
-              border-radius: 70% 30% 52% 48% / 60% 40% 60% 40%;
-            }
-            50% {
-              border-radius: 30% 70% 70% 30% / 50% 30% 70% 50%;
-            }
-            75% {
-              border-radius: 35% 65% 60% 40% / 65% 35% 65% 35%;
-            }
-            100% {
-              border-radius: 42% 58% 70% 30% / 45% 45% 55% 55%;
-            }
-          }
+
           @keyframes scanLine {
             0% { transform: translateY(0); opacity: 0; }
             10% { opacity: 0.65; }
@@ -173,7 +120,6 @@ export default function HeroSection() {
         {/* Tactical Night-Vision and Vignette overlay gradients */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#0d0e12] via-[#0d0e12]/40 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#0d0e12]/20 via-transparent to-[#0d0e12]/20" />
-      </motion.div>
 
       {/* Dynamic HUD Tracking Decals & Micro Elements */}
       <div className="absolute inset-0 pointer-events-none z-[2]">
@@ -230,6 +176,57 @@ export default function HeroSection() {
             />
           );
         })}
+      </div>
+
+      {/* Compact Centered Download Resume Tactical Card */}
+      <div className="relative z-20 my-auto pt-28 sm:pt-36 pb-12 flex flex-col items-center justify-center pointer-events-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, delay: 0.2 }}
+          className="bg-[#080a10]/85 backdrop-blur-md border border-[#1b2130] hover:border-brand/50 rounded-xl p-3.5 sm:p-4 shadow-[0_8px_30px_rgba(0,0,0,0.8)] max-w-[280px] sm:max-w-xs w-full mx-auto text-center space-y-2.5 group transition-all duration-300 relative overflow-hidden"
+        >
+          {/* Subtle Accent Top Border */}
+          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-brand to-transparent opacity-60 group-hover:opacity-100 transition-opacity" />
+
+          {/* Compact Header Badge */}
+          <div className="inline-flex items-center space-x-1.5 bg-[#121624] px-2.5 py-0.5 rounded-full border border-[#222938] text-[9px] sm:text-[10px] font-mono text-brand uppercase tracking-wider">
+            <ShieldCheck className="w-3 h-3 text-brand" />
+            <span>SANATH LAL SHIBU LEKHA</span>
+          </div>
+
+          {/* Download Resume Button */}
+          <div>
+            <button
+              type="button"
+              onClick={handleDownloadResume}
+              onMouseEnter={() => playSound('chirp')}
+              className="w-full relative inline-flex items-center justify-center space-x-2 bg-brand hover:bg-[#d4fe1a] text-black font-mono font-bold text-xs px-4 py-2.5 rounded-lg shadow-[0_0_15px_rgba(196,253,2,0.25)] hover:shadow-[0_0_22px_rgba(196,253,2,0.5)] transition-all duration-300 cursor-pointer uppercase tracking-wider group/btn"
+            >
+              {downloaded ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-black animate-bounce" />
+                  <span>RESUME DISPATCHED</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-3.5 h-3.5 text-black group-hover/btn:translate-y-0.5 transition-transform" />
+                  <span>DOWNLOAD RESUME</span>
+                  <FileText className="w-3.5 h-3.5 text-black/70" />
+                </> 
+              )}
+            </button>
+          </div>
+
+          {/* Micro Footer Label */}
+          <div className="flex items-center justify-between text-[9px] font-mono text-gray-500 pt-1 border-t border-[#161a26]">
+            <span className="flex items-center space-x-1">
+              <FileCheck className="w-2.5 h-2.5 text-brand" />
+              <span className="text-gray-300">FORMAT: PDF</span>
+            </span>
+            <span className="text-brand/80 font-semibold">[ VERIFIED ]</span>
+          </div>
+        </motion.div>
       </div>
 
       {/* Floating tactical scroll down cue */}

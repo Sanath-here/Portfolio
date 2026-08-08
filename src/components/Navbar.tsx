@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Volume2, VolumeX, Menu, X, ShieldAlert, Cpu, Terminal, Radio } from 'lucide-react';
 import { playSound } from '../utils/audio';
 
+const DEFAULT_AVATAR = "/src/assets/images/tactical_profile_avatar_1786212879890.jpg";
+
 interface NavbarProps {
   isMuted: boolean;
   onToggleMute: () => void;
@@ -16,7 +18,7 @@ export default function Navbar({ isMuted, onToggleMute, activeSection, onReplayL
 
   useEffect(() => {
     const handleScroll = () => {
-      setScrolled(window.scrollY > 50);
+      setScrolled(window.scrollY > 40);
     };
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
@@ -47,21 +49,30 @@ export default function Navbar({ isMuted, onToggleMute, activeSection, onReplayL
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
         
-        {/* Left: Brand Name - Lando style but Ghost militarized */}
-        <div className="flex items-center space-x-3">
+        {/* Left: Profile Picture & Brand Name */}
+        <div className="flex items-center space-x-3 sm:space-x-4">
+          
+          {/* Static Profile Picture Avatar Ring */}
+          <div className="relative flex-shrink-0">
+            <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-full p-[2px] bg-gradient-to-tr from-brand/80 via-[#1e2538] to-brand/40 shadow-[0_0_12px_rgba(196,253,2,0.25)]">
+              <div className="w-full h-full rounded-full overflow-hidden bg-[#121520] relative">
+                <img
+                  src='./src/assets/images/1772978873472.jpg'
+                  alt="Sanath Lal"
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              {/* Glowing Online Operative Dot */}
+              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-brand border-2 border-[#0d0e12] shadow-[0_0_8px_rgba(196,253,2,0.8)]" />
+            </div>
+          </div>
+
+          {/* Brand Title */}
           <div className="flex flex-col select-none cursor-pointer" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
             <div className="flex items-center space-x-2">
               <span className="font-display font-bold text-lg tracking-[0.01em] text-white">
                 SANATH
-              </span>
-              <span className="font-display font-light text-lg tracking-[0.01em] text-brand glow-brand">
-                LAL
-              </span>
-              <span className="font-display font-bold text-lg tracking-[0.01em] text-white">
-                SHIBU
-              </span>
-              <span className="font-display font-light text-lg tracking-[0.01em] text-brand glow-brand">
-                LEKHA
               </span>
             </div>
             <div className="flex items-center space-x-1.5 mt-0.5">
@@ -109,7 +120,6 @@ export default function Navbar({ isMuted, onToggleMute, activeSection, onReplayL
 
         {/* Right: Sound Control + Custom McLaren-style Store button + Burger */}
         <div className="flex items-center space-x-3">
-          
 
           {/* Audio synthezier power trigger */}
           <button
