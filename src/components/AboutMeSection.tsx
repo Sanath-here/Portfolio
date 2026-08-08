@@ -99,7 +99,7 @@ export default function AboutMeSection() {
                   </li>
                   <li className="flex items-center group-hover:text-white transition-colors duration-200">
                     <span className="font-mono text-[11px] text-brand mr-3 select-none">[+]</span>
-                    Unreal Engine Developer
+                    Unreal Engine, Unity
                   </li>
                   <li className="flex items-center group-hover:text-white transition-colors duration-200">
                     <span className="font-mono text-[11px] text-brand mr-3 select-none">[+]</span>
