@@ -52,7 +52,7 @@ export default function CustomCursor() {
   if (!isVisible) return null;
 
   return (
-    <div id="custom-tactical-cursor" className="fixed inset-0 pointer-events-none z-[9999] select-none hidden md:block">
+    <div id="custom-tactical-cursor" className="fixed inset-0 pointer-events-none z-[100000] select-none hidden md:block">
       {/* Outer weighted circular 2px ring trailing in spring */}
       <motion.div
         style={{

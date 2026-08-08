@@ -1,7 +1,8 @@
 import { useState, MouseEvent, useRef } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { Download, FileText, ShieldCheck, CheckCircle2, FileCheck } from 'lucide-react';
 import { playSound } from '../utils/audio';
+import ResumeDownloadModal from './ResumeDownloadModal';
 
 // Dynamic import or local path of the generated image
 // @ts-ignore
@@ -12,6 +13,7 @@ export default function HeroSection() {
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0, isHovered: false });
   const [downloaded, setDownloaded] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   const handleMouseMove = (e: MouseEvent<HTMLDivElement>) => {
     // Calculate interactive parallax offset
@@ -34,19 +36,7 @@ export default function HeroSection() {
 
   const handleDownloadResume = () => {
     playSound('unlock');
-    setDownloaded(true);
-
-    const link = document.createElement('a');
-    link.href = '/Sanath Lal Shibu Lekha Resume.pdf';
-    link.download = 'Sanath_Lal.pdf';
-
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    setTimeout(() => {
-      setDownloaded(false);
-    }, 4000);
+    setIsModalOpen(true);
   };
 
   return (
@@ -99,23 +89,22 @@ export default function HeroSection() {
           transition={{ type: "spring", stiffness: 90, damping: 24 }}
           className="w-full h-full object-cover object-top opacity-85 transition-all duration-700"
         />
-        </motion.div>
+      </motion.div>
 
-        <style>{`
-
-          @keyframes scanLine {
-            0% { transform: translateY(0); opacity: 0; }
-            10% { opacity: 0.65; }
-            90% { opacity: 0.65; }
-            100% { transform: translateY(90vh); opacity: 0; }
-          }
-          @keyframes tacticalRise {
-            0% { transform: translateY(0) scale(0.85); opacity: 0; }
-            15% { opacity: 0.6; }
-            85% { opacity: 0.6; }
-            100% { transform: translateY(-75vh) scale(1.3); opacity: 0; }
-          }
-        `}</style>
+      <style>{`
+        @keyframes scanLine {
+          0% { transform: translateY(0); opacity: 0; }
+          10% { opacity: 0.65; }
+          90% { opacity: 0.65; }
+          100% { transform: translateY(90vh); opacity: 0; }
+        }
+        @keyframes tacticalRise {
+          0% { transform: translateY(0) scale(0.85); opacity: 0; }
+          15% { opacity: 0.6; }
+          85% { opacity: 0.6; }
+          100% { transform: translateY(-75vh) scale(1.3); opacity: 0; }
+        }
+      `}</style>
 
         {/* Tactical Night-Vision and Vignette overlay gradients */}
         <div className="absolute inset-0 bg-gradient-to-t from-[#0d0e12] via-[#0d0e12]/40 to-transparent" />
@@ -192,11 +181,11 @@ export default function HeroSection() {
           {/* Compact Header Badge */}
           <div className="inline-flex items-center space-x-1.5 bg-[#121624] px-2.5 py-0.5 rounded-full border border-[#222938] text-[9px] sm:text-[10px] font-mono text-brand uppercase tracking-wider">
             <ShieldCheck className="w-3 h-3 text-brand" />
-            <span>SANATH LAL SHIBU LEKHA</span>
+            <span>SANATH LAL // DOSSIER</span>
           </div>
 
           {/* Download Resume Button */}
-          <div>
+          <div className="relative">
             <button
               type="button"
               onClick={handleDownloadResume}
@@ -206,14 +195,14 @@ export default function HeroSection() {
               {downloaded ? (
                 <>
                   <CheckCircle2 className="w-3.5 h-3.5 text-black animate-bounce" />
-                  <span>RESUME DISPATCHED</span>
+                  <span>DOSSIER DISPATCHED</span>
                 </>
               ) : (
                 <>
                   <Download className="w-3.5 h-3.5 text-black group-hover/btn:translate-y-0.5 transition-transform" />
                   <span>DOWNLOAD RESUME</span>
                   <FileText className="w-3.5 h-3.5 text-black/70" />
-                </> 
+                </>
               )}
             </button>
           </div>
@@ -240,6 +229,8 @@ export default function HeroSection() {
           <div className="w-0.5 h-1 bg-brand rounded-full" />
         </motion.div>
       </div>
+
+      <ResumeDownloadModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </section>
   );
 }
