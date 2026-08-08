@@ -15,6 +15,7 @@ import AboutMeSection from './components/AboutMeSection';
 import ProjectsSection from './components/ProjectsSection';
 import CredentialsSection from './components/CredentialsSection';
 import ContactSection from './components/ContactSection';
+import LoadingScreen from './components/LoadingScreen';
 import CustomCursor from './components/CustomCursor';
 import { toggleMute, playSound } from './utils/audio';
 import { Target, Cpu, HardDrive, ShieldAlert } from 'lucide-react';
@@ -22,6 +23,7 @@ import { Target, Cpu, HardDrive, ShieldAlert } from 'lucide-react';
 export default function App() {
   const [isMuted, setIsMuted] = useState(true);
   const [activeSection, setActiveSection] = useState('hero');
+  const [isLoading, setIsLoading] = useState(true);
 
   const handleToggleMute = () => {
     const newMuted = !isMuted;
@@ -62,6 +64,11 @@ export default function App() {
   return (
     <div className="relative min-h-screen bg-[#0d0e12] text-white selection:bg-brand selection:text-black">
       
+      {/* COD Themed Tactical Loading Screen Overlay */}
+      {isLoading && (
+        <LoadingScreen onComplete={() => setIsLoading(false)} />
+      )}
+
       {/* Custom interactive mouse cursor */}
       <CustomCursor />
       {/* Absolute Header Overlay */}
@@ -69,6 +76,7 @@ export default function App() {
         isMuted={isMuted} 
         onToggleMute={handleToggleMute} 
         activeSection={activeSection} 
+        onReplayLoading={() => setIsLoading(true)}
       />
 
       {/* Main Page Layout Sections */}

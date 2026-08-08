@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Volume2, VolumeX, Menu, X, ShieldAlert, Cpu, Terminal } from 'lucide-react';
+import { Volume2, VolumeX, Menu, X, ShieldAlert, Cpu, Terminal, Radio } from 'lucide-react';
 import { playSound } from '../utils/audio';
 
 interface NavbarProps {
   isMuted: boolean;
   onToggleMute: () => void;
   activeSection: string;
+  onReplayLoading?: () => void;
 }
 
-export default function Navbar({ isMuted, onToggleMute, activeSection }: NavbarProps) {
+export default function Navbar({ isMuted, onToggleMute, activeSection, onReplayLoading }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -107,8 +108,9 @@ export default function Navbar({ isMuted, onToggleMute, activeSection }: NavbarP
         </nav>
 
         {/* Right: Sound Control + Custom McLaren-style Store button + Burger */}
-        <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-3">
           
+
           {/* Audio synthezier power trigger */}
           <button
             onClick={() => {
