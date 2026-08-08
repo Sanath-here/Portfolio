@@ -132,36 +132,36 @@ export const CERTIFICATIONS_DATA: Certification[] = [
     skills: ['Robotics', 'Gen AI', 'Power BI', 'Design Thinking'],
     status: 'AUTHENTICATED'
   },
-  {
-    id: 'ai-ml-python',
-    title: 'Applied Machine Learning & Neural Networks',
-    issuer: 'DeepLearning.AI / Python Academy',
-    date: '2025',
-    credentialId: 'ML-PYT-992143',
-    verifyUrl: 'https://coursera.org',
-    skills: ['PyTorch & TensorFlow', 'Computer Vision', 'NLP Transformers', 'Model Optimization'],
-    status: 'AUTHENTICATED'
-  },
-  {
-    id: 'blender-3d',
-    title: '3D Asset Design & Spatial Environment Modeling',
-    issuer: 'Blender Foundation Certified Course',
-    date: '2024',
-    credentialId: 'BLN-3D-441092',
-    verifyUrl: 'https://www.blender.org',
-    skills: ['Low/High Poly Modeling', 'UV Unwrapping', 'Substance Texturing', 'PBR Shaders'],
-    status: 'VERIFIED'
-  },
-  {
-    id: 'web-frontend',
-    title: 'Modern Responsive Web & Frontend Engineering',
-    issuer: 'Meta / FreeCodeCamp Professional',
-    date: '2024',
-    credentialId: 'MTA-FED-102948',
-    verifyUrl: 'https://meta.com',
-    skills: ['React 19 & TypeScript', 'Tailwind CSS', 'Web Performance', 'UI/UX Interactive HUDs'],
-    status: 'ACTIVE'
-  }
+  // {
+  //   id: 'ai-ml-python',
+  //   title: 'Applied Machine Learning & Neural Networks',
+  //   issuer: 'DeepLearning.AI / Python Academy',
+  //   date: '2025',
+  //   credentialId: 'ML-PYT-992143',
+  //   verifyUrl: 'https://coursera.org',
+  //   skills: ['PyTorch & TensorFlow', 'Computer Vision', 'NLP Transformers', 'Model Optimization'],
+  //   status: 'AUTHENTICATED'
+  // },
+  // {
+  //   id: 'blender-3d',
+  //   title: '3D Asset Design & Spatial Environment Modeling',
+  //   issuer: 'Blender Foundation Certified Course',
+  //   date: '2024',
+  //   credentialId: 'BLN-3D-441092',
+  //   verifyUrl: 'https://www.blender.org',
+  //   skills: ['Low/High Poly Modeling', 'UV Unwrapping', 'Substance Texturing', 'PBR Shaders'],
+  //   status: 'VERIFIED'
+  // },
+  // {
+  //   id: 'web-frontend',
+  //   title: 'Modern Responsive Web & Frontend Engineering',
+  //   issuer: 'Meta / FreeCodeCamp Professional',
+  //   date: '2024',
+  //   credentialId: 'MTA-FED-102948',
+  //   verifyUrl: 'https://meta.com',
+  //   skills: ['React 19 & TypeScript', 'Tailwind CSS', 'Web Performance', 'UI/UX Interactive HUDs'],
+  //   status: 'ACTIVE'
+  // }
 ];
 
 export const SOCIAL_PROFILES_DATA: SocialProfile[] = [
