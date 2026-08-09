@@ -33,6 +33,8 @@ export interface Feedback {
   message: string;
   rating: number;
   date: string;
+  subject?: string;
+  email?: string;
 }
 
 export interface Certification {
@@ -64,7 +66,7 @@ export interface WorkExperience {
   company: string;
   location: string;
   period: string;
-  type: 'Full-time' | 'Contract' | 'Freelance' | 'Lead' | 'Internship';
+  type: 'Full-time' | 'Contract' | 'Freelance' | 'Lead';
   description: string;
   responsibilities: string[];
   techStack: string[];

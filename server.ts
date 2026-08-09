@@ -8,6 +8,13 @@ import dotenv from 'dotenv';
 import { createServer as createViteServer } from 'vite';
 
 dotenv.config();
+const envExamplePath = path.join(process.cwd(), '.env.example');
+const envLocalPath = path.join(process.cwd(), '.env.local');
+const envPath = path.join(process.cwd(), '.env');
+
+if (fs.existsSync(envExamplePath)) dotenv.config({ path: envExamplePath });
+if (fs.existsSync(envLocalPath)) dotenv.config({ path: envLocalPath });
+if (fs.existsSync(envPath)) dotenv.config({ path: envPath });
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -17,7 +24,30 @@ const app = express();
 
 app.use(express.json());
 
-// In-memory fallback arrays if MongoDB is not connected
+// In-memory fallback arrays with file persistence if MongoDB is not connected
+const FALLBACK_FILE = path.join(__dirname, 'data_feedback_fallback.json');
+
+function loadFallbackFeedbackFromFile(): Array<any> {
+  try {
+    if (fs.existsSync(FALLBACK_FILE)) {
+      const raw = fs.readFileSync(FALLBACK_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.error('Failed to load fallback feedback file:', e);
+  }
+  return [];
+}
+
+function saveFallbackFeedbackToFile(list: Array<any>) {
+  try {
+    fs.writeFileSync(FALLBACK_FILE, JSON.stringify(list, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Failed to save fallback feedback file:', e);
+  }
+}
+
 const fallbackLogs: Array<{
   id: string;
   name: string;
@@ -40,18 +70,21 @@ const fallbackFeedback: Array<{
   date: string;
   timestamp: string;
   dbSaved: boolean;
-}> = [];
+}> = loadFallbackFeedbackFromFile();
 
 // Helper to get or connect to MongoDB lazily
 let mongoClient: MongoClient | null = null;
 
 async function getMongoCollection(collectionName: string = 'resume_access_requests') {
   const uri = process.env.MONGODB_URI;
-  if (!uri) return null;
+  if (!uri || !uri.trim()) return null;
 
   try {
     if (!mongoClient) {
-      mongoClient = new MongoClient(uri);
+      mongoClient = new MongoClient(uri, {
+        serverSelectionTimeoutMS: 3000,
+        connectTimeoutMS: 3000,
+      });
       await mongoClient.connect();
       console.log('Successfully connected to MongoDB');
     }
@@ -222,6 +255,11 @@ app.post('/api/feedback', async (req, res) => {
     const nowISO = new Date().toISOString();
     const dateStr = nowISO.split('T')[0];
 
+    const forwardedHeader = req.headers['x-forwarded-for'];
+    const clientIp = Array.isArray(forwardedHeader) 
+      ? forwardedHeader[0] 
+      : (typeof forwardedHeader === 'string' ? forwardedHeader.split(',')[0].trim() : req.ip || '127.0.0.1');
+
     const feedbackEntry = {
       id: `fb-usr-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       author: String(name).trim(),
@@ -232,11 +270,16 @@ app.post('/api/feedback', async (req, res) => {
       message: String(message).trim(),
       date: dateStr,
       timestamp: nowISO,
-      ip: req.ip || req.headers['x-forwarded-for'] || '127.0.0.1',
+      ip: clientIp,
     };
 
     let dbSaved = false;
-    const collection = await getMongoCollection('feedback_entries');
+    let collection = null;
+    try {
+      collection = await getMongoCollection('feedback_entries');
+    } catch (e) {
+      console.error('Error fetching MongoDB collection:', e);
+    }
 
     if (collection) {
       try {
@@ -249,49 +292,94 @@ app.post('/api/feedback', async (req, res) => {
 
     if (!dbSaved) {
       fallbackFeedback.unshift({ ...feedbackEntry, dbSaved: false });
+      saveFallbackFeedbackToFile(fallbackFeedback);
     }
 
-    // Optional SMTP dispatch notification to owner
-    const smtpHost = process.env.SMTP_HOST;
-    const smtpUser = process.env.SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS;
+    // Automated server-side email dispatch
+    const smtpHost = process.env.SMTP_HOST?.trim();
+    const smtpUser = process.env.SMTP_USER?.trim();
+    const smtpPass = process.env.SMTP_PASS?.trim();
+    const smtpPort = Number(process.env.SMTP_PORT) || 587;
+
+    let emailDispatched = false;
+    let emailStatusNotice = '';
 
     if (smtpHost && smtpUser && smtpPass) {
       try {
         const transporter = nodemailer.createTransport({
           host: smtpHost,
-          port: Number(process.env.SMTP_PORT) || 587,
-          secure: Number(process.env.SMTP_PORT) === 465,
+          port: smtpPort,
+          secure: smtpPort === 465,
           auth: { user: smtpUser, pass: smtpPass },
+          tls: { rejectUnauthorized: false },
+          connectionTimeout: 10000,
+          greetingTimeout: 5000,
         });
 
-        await transporter.sendMail({
-          from: process.env.SMTP_FROM || `"Portfolio Commlink" <${smtpUser}>`,
-          to: process.env.SMTP_FROM || smtpUser,
-          subject: `[New Portfolio Feedback] ${feedbackEntry.subject} - ${feedbackEntry.author}`,
+        const targetEmail = process.env.SMTP_TO?.trim() || process.env.SMTP_FROM?.trim() || 'sanath.lal2023@gmail.com';
+        const fallbackFrom = process.env.SMTP_FROM?.trim() || `"${feedbackEntry.author} (${feedbackEntry.email})" <${smtpUser}>`;
+        
+        // Attempt 1: Send directly using the visitor's name & email as the FROM address
+        const visitorFrom = `"${feedbackEntry.author}" <${feedbackEntry.email}>`;
+
+        const mailPayload = {
+          to: targetEmail,
+          replyTo: `"${feedbackEntry.author}" <${feedbackEntry.email}>`,
+          subject: `[Portfolio Feedback] ${feedbackEntry.subject} - From ${feedbackEntry.author}`,
           html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0b0e17; color: #e2e8f0; padding: 24px; border-radius: 8px;">
-              <h2 style="color: #c4fd02; margin-top: 0;">New Feedback Received</h2>
-              <p><strong>From:</strong> ${feedbackEntry.author} (${feedbackEntry.email})</p>
-              <p><strong>Role/Organization:</strong> ${feedbackEntry.role}</p>
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #0b0e17; color: #e2e8f0; padding: 24px; border-radius: 8px; border: 1px solid #1e293b;">
+              <h2 style="color: #c4fd02; margin-top: 0;">New Transmission Received</h2>
+              <p><strong>Visitor Name:</strong> ${feedbackEntry.author}</p>
+              <p><strong>Visitor Email:</strong> <a href="mailto:${feedbackEntry.email}" style="color: #c4fd02;">${feedbackEntry.email}</a></p>
+              <p><strong>Role/Company:</strong> ${feedbackEntry.role || 'N/A'}</p>
               <p><strong>Rating:</strong> ${feedbackEntry.rating} / 5 Stars</p>
               <p><strong>Subject:</strong> ${feedbackEntry.subject}</p>
-              <div style="background-color: #161f30; padding: 16px; border-left: 4px solid #c4fd02; margin: 16px 0;">
+              <div style="background-color: #161f30; padding: 16px; border-left: 4px solid #c4fd02; margin: 16px 0; font-style: italic;">
                 "${feedbackEntry.message}"
               </div>
-              <p style="color: #94a3b8; font-size: 12px;">Submitted on ${feedbackEntry.timestamp}</p>
+              <p style="color: #94a3b8; font-size: 12px;">Submitted at ${feedbackEntry.timestamp} from IP ${clientIp}</p>
             </div>
           `,
-        });
-      } catch (mailErr) {
-        console.error('Failed to dispatch feedback email:', mailErr);
+        };
+
+        try {
+          // Try sending directly with visitor email as From
+          await transporter.sendMail({
+            from: visitorFrom,
+            ...mailPayload
+          });
+          emailDispatched = true;
+          emailStatusNotice = `Email dispatched directly from ${feedbackEntry.email} to ${targetEmail}`;
+        } catch (visitorSenderErr: any) {
+          console.warn('SMTP rejected direct visitor FROM address (common with Gmail/Outlook DMARC policies). Falling back to authenticated sender:', visitorSenderErr?.message);
+          
+          // Fallback Attempt: Use authenticated sender with visitor's name & email in display name
+          await transporter.sendMail({
+            from: `"${feedbackEntry.author} (${feedbackEntry.email})" <${smtpUser}>`,
+            ...mailPayload
+          });
+          emailDispatched = true;
+          emailStatusNotice = `Email dispatched to ${targetEmail} (Formatted From: ${feedbackEntry.author} <${feedbackEntry.email}>)`;
+        }
+      } catch (mailErr: any) {
+        console.error('Failed to dispatch feedback email via SMTP:', mailErr);
+        emailStatusNotice = `SMTP Error (${mailErr?.code || 'FAIL'}): ${mailErr?.message || 'Check App Password or SMTP credentials'}`;
       }
+    } else {
+      const missingVars = [];
+      if (!smtpHost) missingVars.push('SMTP_HOST');
+      if (!smtpUser) missingVars.push('SMTP_USER');
+      if (!smtpPass) missingVars.push('SMTP_PASS');
+      console.log(`[Email Notice] Missing SMTP configuration: ${missingVars.join(', ')}.`);
+      emailStatusNotice = `Missing environment variables: ${missingVars.join(', ')}. Set them in .env / platform variables.`;
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Feedback received and saved to database.',
+      message: 'Feedback received and processed.',
       dbSaved,
+      emailDispatched,
+      emailNotice: emailStatusNotice,
       data: feedbackEntry,
     });
   } catch (error) {
@@ -303,17 +391,72 @@ app.post('/api/feedback', async (req, res) => {
   }
 });
 
-// GET /api/feedback (Retrieve stored feedback list from MongoDB)
+// GET /api/smtp-test (Diagnostic endpoint to verify SMTP configuration)
+app.get('/api/smtp-test', async (req, res) => {
+  const smtpHost = process.env.SMTP_HOST?.trim();
+  const smtpUser = process.env.SMTP_USER?.trim();
+  const smtpPass = process.env.SMTP_PASS?.trim();
+  const smtpPort = Number(process.env.SMTP_PORT) || 587;
+
+  if (!smtpHost || !smtpUser || !smtpPass) {
+    const missingVars = [];
+    if (!smtpHost) missingVars.push('SMTP_HOST');
+    if (!smtpUser) missingVars.push('SMTP_USER');
+    if (!smtpPass) missingVars.push('SMTP_PASS');
+    return res.status(200).json({
+      configured: false,
+      verified: false,
+      missing: {
+        SMTP_HOST: !smtpHost,
+        SMTP_USER: !smtpUser,
+        SMTP_PASS: !smtpPass,
+      },
+      message: `SMTP variables missing in server environment: ${missingVars.join(', ')}. Configure them in project Settings/Environment Variables.`,
+    });
+  }
+
+  try {
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: { user: smtpUser, pass: smtpPass },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 10000,
+    });
+
+    await transporter.verify();
+    return res.status(200).json({
+      configured: true,
+      verified: true,
+      host: smtpHost,
+      user: smtpUser,
+      port: smtpPort,
+      message: `SMTP connection to ${smtpHost}:${smtpPort} verified successfully for ${smtpUser}!`,
+    });
+  } catch (err: any) {
+    return res.status(200).json({
+      configured: true,
+      verified: false,
+      host: smtpHost,
+      user: smtpUser,
+      port: smtpPort,
+      message: `SMTP Authentication Error (${err?.code || 'AUTH_FAIL'}): ${err?.message || 'Failed to authenticate with SMTP server. Please check your App Password.'}`,
+      error: err?.message || 'Failed to authenticate with SMTP server',
+      code: err?.code,
+    });
+  }
+});
+
+// GET /api/feedback (Retrieve stored feedback list from MongoDB or file fallback)
 app.get('/api/feedback', async (req, res) => {
   try {
     const collection = await getMongoCollection('feedback_entries');
     if (collection) {
       const docs = await collection.find({}).sort({ timestamp: -1 }).limit(100).toArray();
-      // Format mongodb _id out if needed
       const sanitized = docs.map(doc => ({
         id: doc.id || String(doc._id),
         author: doc.author,
-        email: doc.email,
         role: doc.role,
         subject: doc.subject,
         rating: doc.rating,
@@ -322,17 +465,37 @@ app.get('/api/feedback', async (req, res) => {
       }));
       return res.json({ success: true, source: 'mongodb', count: sanitized.length, data: sanitized });
     }
-    return res.json({ success: true, source: 'memory_fallback', count: fallbackFeedback.length, data: fallbackFeedback });
+    const diskFallback = loadFallbackFeedbackFromFile();
+    const sanitizedFallback = diskFallback.map(doc => ({
+      id: doc.id,
+      author: doc.author,
+      role: doc.role,
+      subject: doc.subject,
+      rating: doc.rating,
+      message: doc.message,
+      date: doc.date,
+    }));
+    return res.json({ success: true, source: 'disk_fallback', count: sanitizedFallback.length, data: sanitizedFallback });
   } catch (err) {
     console.error('Error fetching feedback from database:', err);
     return res.status(500).json({ success: false, error: 'Failed to retrieve feedback list.' });
   }
 });
 
-// DELETE /api/feedback/:id (Delete feedback entry)
+// DELETE /api/feedback/:id (Delete feedback entry - Protected for Portfolio Owner)
 app.delete('/api/feedback/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    const providedKey = req.headers['x-admin-key'] || req.query.adminKey || (req.body && req.body.adminKey);
+    const requiredKey = process.env.ADMIN_SECRET_KEY || 'sanath2026';
+
+    if (!providedKey || String(providedKey).trim() !== String(requiredKey).trim()) {
+      return res.status(403).json({
+        success: false,
+        error: 'Unauthorized: Only the portfolio owner can delete feedback entries.',
+      });
+    }
+
     if (!id) return res.status(400).json({ success: false, error: 'Feedback ID is required.' });
 
     const collection = await getMongoCollection('feedback_entries');
@@ -343,6 +506,7 @@ app.delete('/api/feedback/:id', async (req, res) => {
     const index = fallbackFeedback.findIndex(item => item.id === id);
     if (index !== -1) {
       fallbackFeedback.splice(index, 1);
+      saveFallbackFeedbackToFile(fallbackFeedback);
     }
 
     return res.json({ success: true, message: `Feedback ${id} deleted.` });

@@ -16,7 +16,11 @@ import {
   Zap,
   Tag,
   Trash2,
-  Database
+  Database,
+  Lock,
+  Unlock,
+  Key,
+  X
 } from 'lucide-react';
 import { Feedback } from '../types';
 import { PRESEEDED_FEEDBACK } from '../data';
@@ -32,6 +36,29 @@ const QUICK_TAGS = [
   { label: '🌟 Portfolio Feedback', subject: 'Portfolio Review & Feedback', message: 'Hey Sanath! Just reviewed your portfolio. Really impressed by the tactical HUD UI and features.' },
   { label: '🎮 Game Prototype Demo', subject: 'Game Prototype Feedback', message: 'Hey Sanath, loved your game prototypes! Would love to chat about game mechanics and testing.' }
 ];
+
+const LOCAL_STORAGE_KEY = 'sanath_portfolio_feedback_v3';
+
+function getLocalFeedback(): Feedback[] {
+  try {
+    const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch (e) {
+    console.error('Error reading feedback from localStorage:', e);
+  }
+  return [];
+}
+
+function saveLocalFeedback(list: Feedback[]) {
+  try {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(list));
+  } catch (e) {
+    console.error('Error saving feedback to localStorage:', e);
+  }
+}
 
 export default function ContactSection() {
   // Form States
@@ -49,23 +76,85 @@ export default function ContactSection() {
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [dbStatusText, setDbStatusText] = useState<string | null>(null);
+  const [emailNoticeText, setEmailNoticeText] = useState<string | null>(null);
+  const [isEmailSuccess, setIsEmailSuccess] = useState<boolean>(false);
 
-  // Local Feedback Stream (Starts with preseeded + loaded from MongoDB)
-  const [feedbackList, setFeedbackList] = useState<Feedback[]>(PRESEEDED_FEEDBACK);
+  // SMTP Diagnostic State
+  const [smtpTestResult, setSmtpTestResult] = useState<any>(null);
+  const [isTestingSmtp, setIsTestingSmtp] = useState(false);
 
-  // Fetch persisted feedback entries from MongoDB on mount
+  const runSmtpTest = async () => {
+    playSound('chirp');
+    setIsTestingSmtp(true);
+    setSmtpTestResult(null);
+    try {
+      const res = await fetch('/api/smtp-test');
+      const text = await res.text();
+      let data: any = null;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        data = null;
+      }
+
+      if (data) {
+        setSmtpTestResult(data);
+      } else {
+        setSmtpTestResult({
+          configured: false,
+          verified: false,
+          message: `Backend service response format error (HTTP ${res.status}). Expected JSON.`,
+        });
+      }
+    } catch (err: any) {
+      setSmtpTestResult({
+        configured: false,
+        verified: false,
+        message: `Network error reaching diagnostic route: ${err?.message || 'Check dev server connection.'}`,
+      });
+    } finally {
+      setIsTestingSmtp(false);
+    }
+  };
+
+  // Owner Admin Management States
+  const [isAdminMode, setIsAdminMode] = useState(false);
+  const [adminPasscode, setAdminPasscode] = useState('sanath2026');
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [inputPasscode, setInputPasscode] = useState('');
+  const [adminModalError, setAdminModalError] = useState<string | null>(null);
+
+  // Local Feedback Stream (Loads from localStorage + Server)
+  const [feedbackList, setFeedbackList] = useState<Feedback[]>(() => {
+    const local = getLocalFeedback();
+    if (local.length > 0) {
+      const existingIds = new Set(local.map(item => item.id));
+      return [...local, ...PRESEEDED_FEEDBACK.filter(p => !existingIds.has(p.id))];
+    }
+    return PRESEEDED_FEEDBACK;
+  });
+
+  // Fetch persisted feedback entries from server on mount & merge
   useEffect(() => {
     async function loadFeedbackFromDB() {
       try {
         const res = await fetch('/api/feedback');
         if (!res.ok) return;
-        const json = await res.json();
+        const text = await res.text();
+        if (!text) return;
+        const json = JSON.parse(text);
         if (json.success && Array.isArray(json.data) && json.data.length > 0) {
-          // Merge db feedback with preseeded, avoiding duplicates
           setFeedbackList(prev => {
-            const existingIds = new Set(prev.map(item => item.id));
-            const newDbItems = json.data.filter((item: Feedback) => !existingIds.has(item.id));
-            return [...newDbItems, ...prev];
+            const map = new Map<string, Feedback>();
+            // Add server items first
+            json.data.forEach((item: Feedback) => map.set(item.id, item));
+            // Add existing local/preseeded items
+            prev.forEach(item => {
+              if (!map.has(item.id)) map.set(item.id, item);
+            });
+            const merged = Array.from(map.values());
+            saveLocalFeedback(merged);
+            return merged;
           });
         }
       } catch (err) {
@@ -104,12 +193,54 @@ export default function ContactSection() {
     setTimeout(() => setCopiedEmail(false), 2500);
   };
 
+  const handleVerifyAdmin = (e: FormEvent) => {
+    e.preventDefault();
+    setAdminModalError(null);
+    const keyToTest = inputPasscode.trim();
+    if (!keyToTest) {
+      setAdminModalError('Please enter owner passcode.');
+      playSound('beep');
+      return;
+    }
+
+    setAdminPasscode(keyToTest);
+    setIsAdminMode(true);
+    setShowAdminModal(false);
+    setInputPasscode('');
+    playSound('unlock');
+  };
+
   const removeFeedback = async (id: string) => {
+    if (!isAdminMode) {
+      setShowAdminModal(true);
+      return;
+    }
+
     playSound('chirp');
-    setFeedbackList(prev => prev.filter(item => item.id !== id));
+    setFeedbackList(prev => {
+      const updated = prev.filter(item => item.id !== id);
+      saveLocalFeedback(updated);
+      return updated;
+    });
 
     try {
-      await fetch(`/api/feedback/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/feedback/${id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-admin-key': adminPasscode || 'sanath2026',
+        },
+      });
+
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        let errJson: any = {};
+        try { errJson = text ? JSON.parse(text) : {}; } catch { errJson = {}; }
+        if (res.status === 403) {
+          setErrorMsg(errJson.error || 'Unauthorized: Incorrect owner passcode provided.');
+          setIsAdminMode(false);
+        }
+      }
     } catch (err) {
       console.error('Error deleting feedback:', err);
     }
@@ -136,50 +267,72 @@ export default function ContactSection() {
     setIsSubmitting(true);
 
     try {
-      // POST to MongoDB Backend API
-      const res = await fetch('/api/feedback', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
-          role: role.trim() || 'Portfolio Operative',
-          subject: subject.trim(),
-          rating,
-          message: message.trim(),
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Failed to record feedback.');
+      // POST to Backend API
+      let res: Response | null = null;
+      try {
+        res = await fetch('/api/feedback', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name.trim(),
+            email: email.trim(),
+            role: role.trim() || 'Portfolio Operative',
+            subject: subject.trim(),
+            rating,
+            message: message.trim(),
+          }),
+        });
+      } catch (netErr) {
+        console.warn('Network error reaching feedback API endpoint:', netErr);
       }
 
-      const newEntry: Feedback = data.data || {
-        id: `fb-user-${Date.now()}`,
-        author: name,
+      let data: any = null;
+      if (res) {
+        const resText = await res.text().catch(() => '');
+        try {
+          data = resText ? JSON.parse(resText) : null;
+        } catch {
+          data = null;
+        }
+      }
+
+      // Handle backend validation error explicitly
+      if (res && res.status >= 400 && res.status < 500 && data && data.error) {
+        throw new Error(data.error);
+      }
+
+      const isPersisted = res && res.ok && (data?.dbSaved || data?.source === 'disk_fallback' || data?.success);
+      const emailDispatched = Boolean(res?.ok && data?.emailDispatched);
+      const emailNoticeMsg = data?.emailNotice || (emailDispatched ? 'Dispatched to inbox' : 'SMTP config needed');
+
+      setIsEmailSuccess(emailDispatched);
+      setEmailNoticeText(emailNoticeMsg);
+
+      const newEntry: Feedback = (res && res.ok && data && data.data) ? data.data : {
+        id: `fb-usr-${Date.now()}`,
+        author: name.trim(),
         role: role.trim() || 'Portfolio Operative',
-        message: message,
+        subject: subject.trim(),
+        email: email.trim(),
+        message: message.trim(),
         rating: rating,
         date: new Date().toISOString().split('T')[0],
       };
 
-      setFeedbackList(prev => [newEntry, ...prev]);
-      setDbStatusText(data.dbSaved ? 'Logged & Persisted to MongoDB' : 'Logged into memory stream');
+      setFeedbackList(prev => {
+        const updated = [newEntry, ...prev.filter(item => item.id !== newEntry.id)];
+        saveLocalFeedback(updated);
+        return updated;
+      });
+
+      setDbStatusText(
+        isPersisted 
+          ? 'Logged & Persisted to Database / Disk' 
+          : 'Saved locally on device'
+      );
+      setEmailNoticeText(emailNoticeMsg);
       setIsSuccess(true);
       playSound('unlock');
-
-      // Construct Mailto Link for optional email opening
-      const mailSubject = encodeURIComponent(`[Portfolio Commlink] ${subject} - from ${name}`);
-      const mailBody = encodeURIComponent(
-        `Name: ${name}\nEmail: ${email}\nRole/Company: ${role}\nRating: ${rating}/5 stars (${ratingLabels[rating]})\nSubject: ${subject}\n\nMessage:\n${message}\n\n---\nTransmitted via Sanath Lal Portfolio Commlink`
-      );
-      const mailtoUrl = `mailto:${DESTINATION_EMAIL}?subject=${mailSubject}&body=${mailBody}`;
-
-      // Optionally attempt to open visitor mail client
-      window.open(mailtoUrl, '_blank');
-
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Error submitting feedback.';
       setErrorMsg(msg);
@@ -270,7 +423,7 @@ export default function ContactSection() {
                     </div>
 
                     <div className="p-4 bg-[#141824] border border-[#272d40] rounded-xl max-w-md mx-auto text-left font-mono text-xs space-y-1.5 text-gray-300">
-                      <div className="text-brand font-bold uppercase border-b border-[#272d40] pb-1 mb-2 flex items-center justify-between">
+                      <div className="text-brand font-bold uppercase border-b border-[#272d40] pb-1 mb-2 flex items-center justify-between flex-wrap gap-1">
                         <span>// DISPATCH SUMMARY LOG</span>
                         {dbStatusText && (
                           <span className="text-[10px] text-brand/90 bg-brand/10 px-2 py-0.5 rounded border border-brand/30 flex items-center space-x-1">
@@ -282,6 +435,16 @@ export default function ContactSection() {
                       <div><span className="text-gray-500">SENDER:</span> {name} ({email})</div>
                       <div><span className="text-gray-500">SUBJECT:</span> {subject}</div>
                       <div><span className="text-gray-500">RATING:</span> {rating}/5 Stars</div>
+                      {emailNoticeText && (
+                        <div className={`pt-2 border-t border-[#272d40] text-[11px] flex items-start space-x-1.5 ${
+                          isEmailSuccess ? 'text-emerald-400' : 'text-amber-400'
+                        }`}>
+                          <Mail className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
+                            isEmailSuccess ? 'text-emerald-400' : 'text-amber-400'
+                          }`} />
+                          <span>{emailNoticeText}</span>
+                        </div>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap items-center justify-center gap-4 pt-2">
@@ -292,15 +455,10 @@ export default function ContactSection() {
                         SEND ANOTHER TRANSMISSION
                       </button>
 
-                      <a
-                        href={`mailto:${DESTINATION_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="bg-[#181c28] hover:bg-[#202636] border border-[#2e364a] text-white font-mono text-xs font-medium px-5 py-3 rounded-xl transition-all flex items-center space-x-2"
-                      >
-                        <span>OPEN IN MAIL CLIENT</span>
-                        <ExternalLink className="w-3.5 h-3.5 text-brand" />
-                      </a>
+                      <div className="bg-[#141824] border border-brand/30 text-brand font-mono text-xs font-medium px-4 py-3 rounded-xl flex items-center space-x-2">
+                        <CheckCircle2 className="w-4 h-4 text-brand" />
+                        <span>SAVED & LOGGED IN FEEDBACK STREAM</span>
+                      </div>
                     </div>
                   </motion.div>
                 ) : (
@@ -471,11 +629,64 @@ export default function ContactSection() {
                         )}
                       </button>
 
-                      <div className="flex items-center space-x-1.5 font-mono text-[10px] text-gray-500">
-                        <ShieldCheck className="w-3.5 h-3.5 text-brand" />
-                        <span>DIRECT SMTP OUTBOX // SAFE</span>
+                      <div className="flex flex-col items-end space-y-1">
+                        <div className="flex items-center space-x-1.5 font-mono text-[10px] text-gray-500">
+                          <ShieldCheck className="w-3.5 h-3.5 text-brand" />
+                          <span>DIRECT SMTP OUTBOX // SAFE</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={runSmtpTest}
+                          disabled={isTestingSmtp}
+                          className="font-mono text-[10px] text-brand/80 hover:text-brand underline cursor-pointer flex items-center space-x-1"
+                        >
+                          {isTestingSmtp ? (
+                            <span>Testing connection...</span>
+                          ) : (
+                            <span>Check SMTP Status</span>
+                          )}
+                        </button>
                       </div>
                     </div>
+
+                    {/* SMTP Test Diagnostic Result Panel */}
+                    {smtpTestResult && (
+                      <div className={`p-4 rounded-xl border font-mono text-xs space-y-2 transition-all ${
+                        smtpTestResult.verified 
+                          ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-200' 
+                          : 'bg-amber-950/40 border-amber-500/40 text-amber-200'
+                      }`}>
+                        <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                          <span className="font-bold flex items-center space-x-1.5">
+                            {smtpTestResult.verified ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 text-amber-400" />
+                            )}
+                            <span>SMTP DIAGNOSTIC STATUS: {smtpTestResult.verified ? 'ONLINE & READY' : 'CONFIG REQUIRED'}</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setSmtpTestResult(null)}
+                            className="text-gray-400 hover:text-white text-[10px]"
+                          >
+                            [ CLOSE ]
+                          </button>
+                        </div>
+                        <p className="text-[11px] leading-relaxed">{smtpTestResult.message}</p>
+                        {smtpTestResult.configured && (
+                          <div className="text-[10px] text-gray-400 space-y-0.5 pt-1">
+                            <div>Host: {smtpTestResult.host}:{smtpTestResult.port}</div>
+                            <div>User: {smtpTestResult.user}</div>
+                          </div>
+                        )}
+                        {smtpTestResult.missing && (
+                          <div className="text-[10px] text-amber-300 pt-1">
+                            Missing in container environment: {Object.keys(smtpTestResult.missing).filter(k => smtpTestResult.missing[k]).join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                   </form>
                 )}
@@ -537,73 +748,233 @@ export default function ContactSection() {
               </div>
             </ScrollReveal>
 
-            {/* Live Community Feedback Stream - Only rendered when entries exist */}
-            {feedbackList.length > 0 && (
-              <ScrollReveal variant="slide-up" delay={0.15}>
-                <div className="bg-[#0e1017] border border-[#1f2433] rounded-2xl p-6 space-y-4">
-                  <div className="flex items-center justify-between pb-3 border-b border-[#1f2433]">
-                    <span className="font-mono text-xs text-white uppercase tracking-wider font-semibold flex items-center space-x-2">
-                      <MessageSquare className="w-4 h-4 text-brand" />
-                      <span>FEEDBACK STREAM ({feedbackList.length})</span>
-                    </span>
-
-                    <span className="font-mono text-[10px] text-brand bg-brand/10 px-2 py-0.5 rounded border border-brand/30">
-                      LIVE ARCHIVE
-                    </span>
-                  </div>
-
-                  {/* Feedback List Items */}
-                  <div className="space-y-4 max-h-[360px] overflow-y-auto pr-1 custom-scrollbar">
-                    {feedbackList.map((fb) => (
-                      <div 
-                        key={fb.id}
-                        className="p-4 rounded-xl bg-[#121520] border border-[#22293b] hover:border-[#323c56] transition-all space-y-2.5"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <h4 className="font-display font-bold text-sm text-white">
-                              {fb.author}
-                            </h4>
-                            <span className="font-mono text-[10px] text-gray-400 block">
-                              {fb.role} • {fb.date}
-                            </span>
-                          </div>
-
-                          {/* Star Rating & Remove */}
-                          <div className="flex items-center space-x-2">
-                            <div className="flex items-center space-x-1 bg-[#181d2c] px-2 py-1 rounded border border-[#2c354d]">
-                              <Star className="w-3 h-3 text-brand fill-brand" />
-                              <span className="font-mono text-xs text-white font-bold">
-                                {fb.rating}.0
-                              </span>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => removeFeedback(fb.id)}
-                              className="p-1 rounded bg-[#181d2c] hover:bg-red-950/60 text-gray-500 hover:text-red-400 border border-[#2c354d] hover:border-red-500/40 transition-all cursor-pointer"
-                              title="Remove feedback item"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        <p className="font-sans text-xs text-gray-300 leading-relaxed font-light italic">
-                          "{fb.message}"
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </ScrollReveal>
-            )}
-
           </div>
 
         </div>
 
+        {/* Dedicated "Feedbacks Submitted" Box directly below */}
+        <ScrollReveal variant="slide-up" delay={0.2}>
+          <div className="mt-12 bg-[#0e1017] border border-[#1f2433] rounded-2xl p-6 sm:p-8 shadow-[0_4px_30px_rgba(0,0,0,0.6)] space-y-6">
+            
+            {/* Box Header */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-[#1f2433]">
+              <div className="space-y-1">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-brand/10 border border-brand/40 rounded-xl text-brand">
+                    <MessageSquare className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-display font-bold text-xl sm:text-2xl text-white tracking-wide uppercase flex items-center space-x-3">
+                    <span>FEEDBACKS SUBMITTED</span>
+                    <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-brand text-black shadow-[0_0_12px_rgba(196,253,2,0.3)]">
+                      {feedbackList.length}
+                    </span>
+                  </h3>
+                </div>
+                <p className="font-sans text-xs text-gray-400 font-light pl-11">
+                  Public reviews & messages transmitted by visitors. Email addresses are strictly hidden to preserve user privacy.
+                </p>
+              </div>
+
+              {/* Status & Privacy Badges + Owner Controls */}
+              <div className="flex flex-wrap items-center gap-2 font-mono text-[10px]">
+                <span className="bg-brand/10 text-brand px-3 py-1 rounded-lg border border-brand/30 flex items-center space-x-1.5">
+                  <Database className="w-3.5 h-3.5 text-brand" />
+                  <span>MONGODB STORED</span>
+                </span>
+                <span className="bg-[#161a26] text-gray-300 px-3 py-1 rounded-lg border border-[#272d40] flex items-center space-x-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-brand" />
+                  <span>EMAIL ADDRESSES PROTECTED</span>
+                </span>
+
+                {/* Owner Admin Mode Toggle Button */}
+                {isAdminMode ? (
+                  <div className="flex items-center space-x-1.5 bg-amber-500/10 border border-amber-500/40 text-amber-300 px-3 py-1 rounded-lg">
+                    <Unlock className="w-3.5 h-3.5 text-amber-400" />
+                    <span className="font-bold uppercase tracking-wide">OWNER MODE</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsAdminMode(false);
+                        playSound('chirp');
+                      }}
+                      className="ml-1 text-xs text-slate-400 hover:text-white underline cursor-pointer"
+                    >
+                      (LOCK)
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAdminModal(true);
+                      playSound('chirp');
+                    }}
+                    className="bg-[#181e2e] hover:bg-[#222a40] text-slate-300 hover:text-white px-3 py-1 rounded-lg border border-[#2e3852] transition-colors flex items-center space-x-1.5 cursor-pointer"
+                    title="Portfolio Owner Management Access"
+                  >
+                    <Lock className="w-3.5 h-3.5 text-brand" />
+                    <span>OWNER ACCESS</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Feedback Stream Grid */}
+            {feedbackList.length === 0 ? (
+              <div className="py-12 text-center space-y-3 bg-[#121520] border border-[#22293b] rounded-xl">
+                <MessageSquare className="w-8 h-8 text-gray-600 mx-auto" />
+                <p className="font-mono text-xs text-gray-400">
+                  No feedback entries submitted yet. Be the first to leave a feedback message above!
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[480px] overflow-y-auto pr-1 custom-scrollbar">
+                {feedbackList.map((fb) => (
+                  <div 
+                    key={fb.id}
+                    className="p-5 rounded-xl bg-[#121520] border border-[#22293b] hover:border-brand/40 transition-all space-y-3 flex flex-col justify-between group"
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h4 className="font-display font-bold text-sm text-white group-hover:text-brand transition-colors">
+                            {fb.author}
+                          </h4>
+                          <span className="font-mono text-[10px] text-gray-400 block">
+                            {fb.role} • {fb.date}
+                          </span>
+                        </div>
+
+                        {/* Star Rating Badge */}
+                        <div className="flex items-center space-x-1 bg-[#181d2c] px-2 py-1 rounded border border-[#2c354d]">
+                          <Star className="w-3 h-3 text-brand fill-brand" />
+                          <span className="font-mono text-xs text-white font-bold">
+                            {fb.rating}.0
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Optional Subject Badge */}
+                      {fb.subject && (
+                        <div className="font-mono text-[10px] text-brand/90 font-semibold bg-brand/5 px-2 py-0.5 rounded border border-brand/20 inline-block">
+                          {fb.subject}
+                        </div>
+                      )}
+
+                      {/* Feedback Body */}
+                      <p className="font-sans text-xs text-gray-300 leading-relaxed font-light italic pt-1">
+                        "{fb.message}"
+                      </p>
+                    </div>
+
+                    {/* Card Footer */}
+                    <div className="flex items-center justify-between pt-3 border-t border-[#1e2436] font-mono text-[10px] text-gray-500">
+                      <span className="flex items-center space-x-1 text-gray-500">
+                        <ShieldCheck className="w-3 h-3 text-brand/70" />
+                        <span>Email Kept Private</span>
+                      </span>
+
+                      {/* Delete button only accessible in Owner Admin Mode */}
+                      {isAdminMode && (
+                        <button
+                          type="button"
+                          onClick={() => removeFeedback(fb.id)}
+                          className="p-1 px-2.5 rounded bg-red-950/40 hover:bg-red-900/60 text-red-400 border border-red-500/40 hover:border-red-400 transition-all cursor-pointer flex items-center space-x-1.5 font-bold"
+                          title="Delete feedback entry (Owner Mode)"
+                        >
+                          <Trash2 className="w-3 h-3 text-red-400" />
+                          <span>Delete</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+          </div>
+        </ScrollReveal>
+
       </div>
+
+      {/* Owner Passcode Verification Modal */}
+      <AnimatePresence>
+        {showAdminModal && (
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 15 }}
+              className="relative w-full max-w-sm bg-[#0b0e17] border border-brand/50 rounded-xl p-6 shadow-[0_0_40px_rgba(196,253,2,0.15)] text-slate-100 z-10"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <div className="flex items-center space-x-2.5 text-brand font-mono font-bold text-xs uppercase tracking-wider">
+                  <Key className="w-4 h-4" />
+                  <span>OWNER ACCESS UNLOCK</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAdminModal(false);
+                    setAdminModalError(null);
+                    setInputPasscode('');
+                  }}
+                  className="p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={handleVerifyAdmin} className="py-4 space-y-4">
+                <p className="text-xs font-sans text-slate-400 leading-relaxed">
+                  To manage or delete feedback entries, please authenticate as the portfolio owner using your passcode.
+                </p>
+
+                {adminModalError && (
+                  <div className="p-2.5 rounded bg-red-950/60 border border-red-500/50 text-red-300 text-xs font-mono flex items-center space-x-2">
+                    <AlertCircle className="w-4 h-4 shrink-0 text-red-400" />
+                    <span>{adminModalError}</span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-[10px] font-mono font-bold text-slate-300 uppercase tracking-wider mb-1">
+                    Owner Passcode *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={inputPasscode}
+                    onChange={(e) => setInputPasscode(e.target.value)}
+                    placeholder="Enter passcode (e.g. sanath2026)"
+                    className="w-full bg-[#121826] border border-slate-800 focus:border-brand rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-brand/50"
+                  />
+                </div>
+
+                <div className="pt-1 flex items-center justify-end space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAdminModal(false);
+                      setAdminModalError(null);
+                      setInputPasscode('');
+                    }}
+                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-mono text-xs rounded-lg cursor-pointer"
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-brand hover:bg-[#d4fe1a] text-black font-mono font-bold text-xs rounded-lg transition-all cursor-pointer uppercase tracking-wider shadow-[0_0_15px_rgba(196,253,2,0.3)] font-bold"
+                  >
+                    UNLOCK OWNER MODE
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </section>
   );
 }

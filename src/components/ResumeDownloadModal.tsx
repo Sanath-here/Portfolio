@@ -54,10 +54,16 @@ export default function ResumeDownloadModal({ isOpen, onClose }: ResumeDownloadM
         body: JSON.stringify(formData),
       });
 
-      const data = await response.json();
+      const resText = await response.text();
+      let data: any = {};
+      try {
+        data = resText ? JSON.parse(resText) : {};
+      } catch {
+        data = { success: response.ok };
+      }
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Failed to submit request.');
+      if (!response.ok || (data && data.success === false)) {
+        throw new Error((data && data.error) || 'Failed to submit request.');
       }
 
       setSuccessResult({
