@@ -301,7 +301,7 @@ export default function ContactSection() {
         throw new Error(data.error);
       }
 
-      const isPersisted = res && res.ok && (data?.dbSaved || data?.source === 'disk_fallback' || data?.success);
+      const isPersisted = Boolean(res?.ok && (data?.dbSaved || data?.source === 'disk_fallback' || data?.success));
       const emailDispatched = Boolean(res?.ok && data?.emailDispatched);
       const emailNoticeMsg = data?.emailNotice || (emailDispatched ? 'Dispatched to inbox' : 'SMTP config needed');
 

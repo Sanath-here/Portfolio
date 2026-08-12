@@ -93,7 +93,8 @@ Thank you for your interest in my profile.
 Please find my resume attached to this email.
 
 Best regards,
-Sanath Lal`,
+Sanath Lal Shibu Lekha,
+Student, Game and Virtual Reality (VR) developer`,
 
       html: `
         <div style="font-family: Arial, sans-serif; line-height: 1.6;">
@@ -102,16 +103,15 @@ Sanath Lal`,
           <p>
             Thank you for your interest in my profile.
           </p>
-
           <p>
             Please find my resume attached to this email.
           </p>
-
           <br>
 
           <p>
             Best regards,<br>
-            <strong>Sanath Lal</strong>
+            <strong>Sanath Lal Shibu Lekha</strong><br>
+            Student, Game and Virtual Reality (VR) developer
           </p>
         </div>
       `,
