@@ -66,7 +66,7 @@ export interface WorkExperience {
   company: string;
   location: string;
   period: string;
-  type: 'Full-time' | 'Contract' | 'Freelance' | 'Lead';
+  type: 'Full-time' | 'Contract' | 'Freelance' | 'Lead' | 'Internship' | 'Remote';
   description: string;
   responsibilities: string[];
   techStack: string[];
