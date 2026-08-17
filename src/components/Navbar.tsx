@@ -146,7 +146,7 @@
 
             {/* Gamified Button: "ACTIVE DOSSIER" (McLaren style Lime Button) */}
             <button
-              onClick={() => handleNavClick('#feedback')}
+              onClick={() => handleNavClick('#contact')}
               className="hidden sm:flex items-center space-x-2 bg-brand text-black font-display font-bold text-xs tracking-widest px-4 py-2.5 rounded-xs hover:bg-[#a3e635] hover:shadow-lg transition-all duration-200 active:scale-95 cursor-pointer border border-brand group"
               onMouseEnter={() => playSound('beep')}
             >
