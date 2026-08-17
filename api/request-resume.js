@@ -76,7 +76,7 @@ export default async function handler(req, res) {
     const resumePath = path.join(
       process.cwd(),
       "public",
-      "Sanath_Lal_Resume.pdf"
+      "Sanath Lal Shibu Lekha Resume.pdf"
     );
 
     // Send resume
