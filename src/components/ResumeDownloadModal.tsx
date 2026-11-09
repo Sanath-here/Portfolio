@@ -21,6 +21,7 @@ export default function ResumeDownloadModal({ isOpen, onClose }: ResumeDownloadM
   const [successResult, setSuccessResult] = useState<{
     recordId: string;
     emailSent: boolean;
+    dbSaved: boolean;
     emailStatusMessage: string;
     downloadUrl: string;
   } | null>(null);
@@ -55,30 +56,41 @@ export default function ResumeDownloadModal({ isOpen, onClose }: ResumeDownloadM
       });
 
       const resText = await response.text();
-      let data: any = {};
+      let data: {
+        success?: boolean;
+        error?: string;
+        recordId?: string;
+        emailSent?: boolean;
+        dbSaved?: boolean;
+        emailStatusMessage?: string;
+        downloadUrl?: string;
+      } = {};
       try {
         data = resText ? JSON.parse(resText) : {};
       } catch {
-        data = { success: response.ok };
+        data = {};
       }
 
       if (!response.ok || (data && data.success === false)) {
-        throw new Error((data && data.error) || 'Failed to submit request.');
+        throw new Error(
+          data.error || `Resume request failed (HTTP ${response.status}). Please try again.`
+        );
       }
 
       setSuccessResult({
         recordId: data.recordId || 'REQ-VERIFIED',
         emailSent: data.emailSent,
+        dbSaved: Boolean(data.dbSaved),
         emailStatusMessage: data.emailStatusMessage || 'Resume request processed.',
-        downloadUrl: data.downloadUrl || '/Sanath_Lal_Resume.pdf',
+        downloadUrl: data.downloadUrl || '/SanathLalShibuLekhaResume.pdf',
       });
 
       playSound('unlock');
 
       // Trigger automatic direct browser download as immediate access fulfillment
       const link = document.createElement('a');
-      link.href = data.downloadUrl || '/Sanath_Lal_Resume.pdf';
-      link.download = 'Sanath_Lal_Resume.pdf';
+      link.href = data.downloadUrl || '/SanathLalShibuLekhaResume.pdf';
+      link.download = 'SanathLalShibuLekhaResume.pdf';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -170,7 +182,7 @@ export default function ResumeDownloadModal({ isOpen, onClose }: ResumeDownloadM
                     ACCESS GRANTED & DISPATCHED
                   </h4>
                   <p className="text-xs font-mono text-slate-300 max-w-sm mx-auto leading-relaxed">
-                    Request logged under Clearance Code:{' '}
+                    {successResult.dbSaved ? 'Request logged under' : 'Request received with'} Clearance Code:{' '}
                     <span className="text-brand font-bold">{successResult.recordId}</span>.
                   </p>
                   <p className="text-xs text-slate-400 pt-1">
@@ -187,6 +199,12 @@ export default function ResumeDownloadModal({ isOpen, onClose }: ResumeDownloadM
                     <span className="text-slate-500">ORGANIZATION:</span>
                     <span className="text-slate-200">{formData.company}</span>
                   </div>
+                  <div className="flex justify-between border-b border-slate-800/80 pb-1.5">
+                    <span className="text-slate-500">AUDIT LOG:</span>
+                    <span className={successResult.dbSaved ? 'text-brand font-bold' : 'text-slate-400'}>
+                      {successResult.dbSaved ? 'SAVED' : 'UNAVAILABLE'}
+                    </span>
+                  </div>
                   <div className="flex justify-between">
                     <span className="text-slate-500">DIRECT DOWNLOAD:</span>
                     <span className="text-brand font-bold">INITIATED</span>
@@ -196,7 +214,7 @@ export default function ResumeDownloadModal({ isOpen, onClose }: ResumeDownloadM
                 <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                   <a
                     href={successResult.downloadUrl}
-                    download="Sanath_Lal_Resume.pdf"
+                    download="SanathLalShibuLekhaResume.pdf"
                     onClick={() => playSound('unlock')}
                     className="w-full sm:w-auto inline-flex items-center justify-center space-x-2 bg-brand text-black font-mono font-bold text-xs px-5 py-2.5 rounded-lg hover:bg-[#d4fe1a] transition-all cursor-pointer uppercase tracking-wider"
                   >
@@ -216,7 +234,7 @@ export default function ResumeDownloadModal({ isOpen, onClose }: ResumeDownloadM
             ) : (
               <form onSubmit={handleSubmit} className="py-5 space-y-4">
                 <p className="text-xs text-slate-400 leading-relaxed font-sans">
-                  To protect personal data and maintain audit security, please provide your details below. The official resume will be logged and dispatched.
+                  Please provide your details to request the official resume. Email delivery and audit logging depend on service availability; direct download is provided either way.
                 </p>
 
                 {error && (
@@ -321,7 +339,7 @@ export default function ResumeDownloadModal({ isOpen, onClose }: ResumeDownloadM
 
                 <div className="flex items-center justify-center space-x-1.5 text-[10px] font-mono text-slate-500 pt-1">
                   <FileText className="w-3 h-3 text-brand" />
-                  <span>MongoDB Audit Logged • Direct Resume Dispatch</span>
+                  <span>Request Logging • Email Dispatch • Direct Download</span>
                 </div>
               </form>
             )}

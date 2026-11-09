@@ -19,7 +19,7 @@ if (fs.existsSync(envPath)) dotenv.config({ path: envPath });
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 const app = express();
 
 app.use(express.json());
@@ -125,7 +125,9 @@ app.post('/api/request-resume', async (req, res) => {
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
 
-    const resumePath = path.join(process.cwd(), 'public', 'Sanath_Lal_Resume.pdf');
+    const resumeFilename = 'SanathLalShibuLekhaResume.pdf';
+    const resumePath = path.join(process.cwd(), 'public', resumeFilename);
+    const downloadUrl = `/${resumeFilename}`;
 
     if (smtpHost && smtpUser && smtpPass) {
       try {
@@ -137,7 +139,7 @@ app.post('/api/request-resume', async (req, res) => {
         });
 
         const attachments = fs.existsSync(resumePath)
-          ? [{ filename: 'Sanath_Lal_Resume.pdf', path: resumePath }]
+          ? [{ filename: resumeFilename, path: resumePath }]
           : [];
 
         await transporter.sendMail({
@@ -205,7 +207,7 @@ app.post('/api/request-resume', async (req, res) => {
       emailSent,
       emailStatusMessage,
       dbSaved,
-      downloadUrl: '/Sanath_Lal_Resume.pdf',
+      downloadUrl,
       recordId: requestLog.id,
     });
   } catch (error) {
